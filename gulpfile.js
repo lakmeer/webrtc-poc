@@ -2,6 +2,7 @@
 // Require
 
 var gulp       = require('gulp'),
+    fs         = require('fs'),
     browserify = require('browserify'),
     connect    = require('gulp-connect'),
     source     = require('vinyl-source-stream');
@@ -35,7 +36,12 @@ var bundler = browserify({
 gulp.task('server', function () {
   connect.server({
     root: 'public',
-    livereload: true
+    livereload: true,
+    https: {
+      key: fs.readFileSync(__dirname + '/server/ssl/key.pem').toString(),
+      cert: fs.readFileSync(__dirname + '/server/ssl/cert.pem').toString(),
+      passphrase: ''
+    }
   });
 });
 

@@ -20,10 +20,13 @@ state.room.join(location.hash);
 state.localVideo.appendTo(document.body);
 
 // Get user media
-/*navigator.webkitGetUserMedia({ video: true, audio: true }, function (stream) {
+navigator.webkitGetUserMedia({ video: true, audio: true }, function (stream) {
     state.localVideo.attachStream(stream);
-    state.pc.addStream(stream);
-}, _.reportError);*/
+    state.localVideo.reverseOutput();
+    state.room.offerStream(stream);
+}, _.reportError);
+/*
+//*/
 
 
 // TODO: Bind video-related stuff to the room peer callback

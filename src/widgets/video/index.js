@@ -37,6 +37,10 @@ Video.prototype.onClick = function (event) {
     }
 };
 
+Video.prototype.reverseOutput = function () {
+  this.dom.video.style.transform = 'scale(-1, 1)';
+};
+
 Video.prototype.appendTo = function (host) {
     host.appendChild(this.dom.main);
 };
