@@ -5,13 +5,17 @@
 
 exports.log = function () {
     console.log.apply(console, arguments);
-}
+};
 
 exports.reportError = function (error) {
     console.error('Error:', error);
-}
+};
 
 exports.id = function () {
     return arguments[0];
-}
+};
+
+exports.getDom = function (id) {
+  return document.getElementById(id);
+};
 

@@ -5,6 +5,6 @@
 export default function videoTemplate (name) {
     var doc = document.createElement("div");
     doc.innerHTML = '<div class="video"><p class="name">' + name + '</p><video></video></div>';
-    return doc;
+    return doc.children[0];
 };
 

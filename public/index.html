@@ -4,9 +4,14 @@
   <meta charset="UTF-8" />
   <title>WebRTC Test</title>
   <style>
+    * {
+      box-sizing: border-box;
+    }
+
     .video {
       max-width: 50%;
       position: relative;
+      border: 1px solid red;
       float: left;
     }
 
@@ -26,11 +31,27 @@
       letter-spacing: 1px;
       text-shadow: 0 0 2px black;
     }
+
+    .video.local {
+      max-width: 100%;
+      border: 2px solid blue;
+    }
+
+    .controls {
+      clear: both;
+      border: 20px solid lightgrey;
+      text-align: center;
+      background: lightgrey;
+    }
   </style>
 </head>
 <body>
-  <!-- <h1> WebRTC <button id="offer"> Offer </button> </h1> -->
+  <div id="local"></div>
   <div id="remote"></div>
+  <div class="controls">
+    <button id="join"> Join </button>
+    <button id="leave"> Leave </button>
+  </div>
   <script src="/app.js"></script>
 </body>
 </html>

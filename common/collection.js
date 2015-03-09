@@ -14,6 +14,10 @@ Collection.prototype.push = function (item) {
   return this.members;
 };
 
+Collection.prototype.forEach = function (λ) {
+  return this.members.forEach(λ);
+};
+
 Collection.prototype.select = function (λ) {
   var result = this.members.filter(λ);
   return result.length > 0 ? result[0] : undefined;

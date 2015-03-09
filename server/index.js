@@ -15,24 +15,23 @@ var log        = require('../common/helpers').log;
 var peerInfos = new Collection();
 
 
-// Socket server
+// SSL-enabled Server
+
+function reqIgnorer (req, res) { res.end("NO"); }
+function getFile (path) { return fs.readFileSync(__dirname + path).toString(); }
 
 var credentials = {
-  key: fs.readFileSync(__dirname + '/ssl/key.pem').toString(),
-  cert: fs.readFileSync(__dirname + '/ssl/cert.pem').toString(),
+  key: getFile('/ssl/key.pem'),
+  cert: getFile('/ssl/cert.pem'),
   passphrase: ''
 };
 
-// Handler (shouldn't be necessary)
-function reqIgnorer (req, res, next) {
-  log('Ignoring GET:', req.url);
-  res.end("NO");
-}
+var server = https.createServer(credentials, reqIgnorer).listen(8081);
 
-var server = https.createServer(credentials, reqIgnorer);
+
+// Socket Server
+
 var io = socket.listen(server);
-server.listen(8081);
-
 
 io.on('connection', function (socket) {
     var myPeerInfo = new PeerInfo(socket.id);
@@ -52,20 +51,26 @@ io.on('connection', function (socket) {
           socket.emit('join-error', 'Username collision: ' + username);
         } else {
           log('Join:', username);
-          socket.emit('peerList', peerInfos.members);
+          socket.emit('peer-list', peerInfos.members);
           myPeerInfo.username = username;
           peerInfos.push(myPeerInfo);
         }
     });
 
+    socket.on('leave', function onLeave () {
+        log('Peer leaving:', socket.id, '(' + (myPeerInfo.username || 'no name') + ')');
+        socket.broadcast.emit('peer-disconnected', myPeerInfo);
+        peerInfos.remove(myPeerInfo);
+    });
+
     socket.on('offer', function onOffer (targetPeer, sdp) {
         myPeerInfo.initiator = true;
-        log('Received offer from', myPeerInfo.username, '-', sdp.sdp.replace("\r\n", '').substring(0, 12));
+        log('Received offer from', myPeerInfo.username, '-', sdp.sdp.replace("\r\n", '').substring(7, 20));
         socket.to(targetPeer.id).emit('offer', myPeerInfo, sdp);
     });
 
     socket.on('answer', function onAnswer (targetPeer, sdp) {
-        log('Received answer from', myPeerInfo.username, '-', sdp.sdp.replace("\r\n", '').substring(0, 12));
+        log('Received answer from', myPeerInfo.username, '-', sdp.sdp.replace("\r\n", '').substring(7, 20));
         socket.to(targetPeer.id).emit('answer', myPeerInfo, sdp);
     });
 
@@ -75,8 +80,9 @@ io.on('connection', function (socket) {
     });
 
     socket.on('disconnect', function () {
-      log('Client disconnected:', socket.id, '(' + (myPeerInfo.username || 'no name') + ')');
-      peerInfos.remove(myPeerInfo);
+        log('Client interrupted:', socket.id, '(' + (myPeerInfo.username || 'no name') + ')');
+        socket.broadcast.emit('peer-disconnected', myPeerInfo);
+        peerInfos.remove(myPeerInfo);
     });
 });
 

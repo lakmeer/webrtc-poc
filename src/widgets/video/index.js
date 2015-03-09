@@ -21,7 +21,7 @@ export default class Video {
     }
 
     attachStream (stream) {
-        log(stream);
+        //log(stream);
         this.stream = stream;
         this.dom.video.src = URL.createObjectURL(stream);
     }
@@ -35,8 +35,9 @@ export default class Video {
         }
     }
 
-    reverseOutput () {
+    markLocal () {
         this.dom.video.style.transform = 'scale(-1, 1)';
+        this.dom.main.classList.add('local');
     }
 
     appendTo (host) {
