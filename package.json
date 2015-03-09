@@ -28,7 +28,8 @@
   },
   "browserify": {
     "transform": [
-      "liveify"
+      [ "liveify" ],
+      [ "babelify", { "experimental": true } ]
     ]
   }
 }

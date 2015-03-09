@@ -3,20 +3,15 @@
  */
 // Helpers
 
-function log () {
+exports.log = function () {
     console.log.apply(console, arguments);
 }
 
-function reportError (error) {
+exports.reportError = function (error) {
     console.error('Error:', error);
 }
 
-function id () {
+exports.id = function () {
     return arguments[0];
 }
 
-module.exports = {
-    log: log,
-    reportError: reportError,
-    id: id
-};

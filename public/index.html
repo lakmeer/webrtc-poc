@@ -3,10 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <title>WebRTC Test</title>
-  <style> .video, video { max-width: 100%; } video </style>
+  <style>
+    .video {
+      max-width: 50%;
+      position: relative;
+      float: left;
+    }
+
+    .video video {
+      display: block;
+      width: 100%;
+    }
+
+    .video .name {
+      position: absolute;
+      right: 0;
+      color: white;
+      z-index: 1;
+      padding: 0 1em;
+      font: 14px Helvetica;
+      font-weight: 100;
+      letter-spacing: 1px;
+      text-shadow: 0 0 2px black;
+    }
+  </style>
 </head>
 <body>
-  <h1> WebRTC <button id="offer"> Offer </button> </h1>
+  <!-- <h1> WebRTC <button id="offer"> Offer </button> </h1> -->
   <div id="remote"></div>
   <script src="/app.js"></script>
 </body>
