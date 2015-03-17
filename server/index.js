@@ -42,7 +42,7 @@ io.on('connection', function (socket) {
       console.log(arguments);
     });
 
-    socket.on('join', function onJoin (username) {
+    socket.on('join', function onJoin (username, meta) {
         if (peerInfos.anyWith('id', socket.id)) {
           log("- Socket ID collision:", socket.id);
           socket.emit('join-error', 'Id collision: ' + socket.id);
@@ -53,6 +53,7 @@ io.on('connection', function (socket) {
           log('Join:', username);
           socket.emit('peer-list', peerInfos.members);
           myPeerInfo.username = username;
+          myPeerInfo.meta = meta;
           peerInfos.push(myPeerInfo);
         }
     });
@@ -64,7 +65,6 @@ io.on('connection', function (socket) {
     });
 
     socket.on('offer', function onOffer (targetPeer, sdp) {
-        myPeerInfo.initiator = true;
         log('Received offer from', myPeerInfo.username, '-', sdp.sdp.replace("\r\n", '').substring(7, 20));
         socket.to(targetPeer.id).emit('offer', myPeerInfo, sdp);
     });

@@ -2,19 +2,7 @@
 import io from 'socket.io-client';
 import { id, log, reportError } from '../../common/helpers';
 import Collection from '../../common/collection';
-
-
-//
-// Helper Classes
-//
-
-class Peer {
-    constructor (id, username, pc) {
-        this.id = id;
-        this.username = username;
-        this.pc = pc;
-    }
-}
+import Peer from './peer';
 
 
 //
@@ -33,6 +21,7 @@ export default class P2PRoom {
             serverURL
         };
         this.state = {
+            needsSettingUp: true,
             peers: new Collection
         };
         this.callbacks = {
@@ -54,24 +43,29 @@ export default class P2PRoom {
     }
 
     // Join: join the room by asking signaling server for peers to talk to
-    join (username) {
+    join (username, meta) {
         log('Room::joining as', username);
 
-        this.socket.emit('join', username);
+        this.socket.emit('join', username, meta || {});
 
-        this.socket.on('offer',             this.onReceivedOffer.bind(this)); //answerOffer.bind(this));
-        this.socket.on('answer',            this.onReceivedAnswer.bind(this));
-        this.socket.on('candidate',         this.onReceivedRemoteCandidate.bind(this)); //saveIceCandidate.bind(this));
-        this.socket.on('peer-list',         this.onPeerList.bind(this));
-        this.socket.on('peer-disconnected', this.onPeerDisconnected.bind(this));
+        if (this.state.needsSettingUp) {
+            this.socket.on('offer',             this.onReceivedOffer.bind(this));
+            this.socket.on('answer',            this.onReceivedAnswer.bind(this));
+            this.socket.on('candidate',         this.onReceivedRemoteCandidate.bind(this));
+            this.socket.on('peer-list',         this.onPeerList.bind(this));
+            this.socket.on('peer-disconnected', this.onPeerDisconnected.bind(this));
 
-        this.socket.on('join-error',        this.callbacks.joinError.bind(this));
+            this.socket.on('join-error',        this.callbacks.joinError.bind(this));
+
+            this.state.needsSettingUp = false;
+        }
     }
 
     // Leave: stop talking to peers (but don't disconnect from signal server)
     leave () {
         this.socket.emit('leave');
         this.state.peers.forEach(peer => peer.pc.close());
+        this.state.peers.clear();
     }
 
 
@@ -80,19 +74,20 @@ export default class P2PRoom {
     //
 
     onReceivedOffer (peerInfo, offerSdp) {
-        this.dispatchAnswer(peerInfo, offerSdp);
+        log('Room::answerOffer - answering offer from', peerInfo.username);
+        // If we're getting an offer (not an answer), the connection is only
+        // halfway set up, so there is no Peer object on our end yet. Make one.
+        var peer = this.createNewPeer(peerInfo);
+        peer.dispatchAnswer(offerSdp, sessionDescription =>
+            this.socket.emit('answer', peerInfo, sessionDescription));
     }
 
     onReceivedAnswer (peerInfo, answerSdp) {
-        var pc = this.getPeerConnection(peerInfo);
-
-        if (pc) {
-            pc.setRemoteDescription(new RTCSessionDescription(answerSdp));
-        }
+        this.getPeer(peerInfo).setRemoteDescription(answerSdp);
     }
 
     onReceivedRemoteCandidate (peerInfo, candidate) {
-        this.saveIceCandidate(peerInfo, candidate);
+        this.getPeer(peerInfo).saveIceCandidate(candidate);
     }
 
     // onPeerDisconnected - signal server told us a peer stopped talking
@@ -100,6 +95,7 @@ export default class P2PRoom {
         this.callbacks.peerDisconnected(peerInfo);
         // Turns out we don't have to do much, because the leave() function
         // called on the other end will terminate the PC which propagates to us
+        this.state.peers.remove( this.getPeer(peerInfo) );
     }
 
     // onPeerList - signal server told us all the peers we can send offers to
@@ -112,45 +108,9 @@ export default class P2PRoom {
 
         peerList.forEach(peerInfo => {
             var peer = this.createNewPeer(peerInfo);
-            this.dispatchOffer(peer);
+            peer.dispatchOffer(sessionDescription =>
+                this.socket.emit('offer', peerInfo, sessionDescription));
         });
-    }
-
-
-    //
-    // Socket event dispatchers
-    //
-
-    // dispatchOffer - send offer sdp to a remote peer via the signal server
-    dispatchOffer (peer) {
-        peer.pc.createOffer(sessionDescription => {
-            peer.pc.setLocalDescription(sessionDescription);
-            this.socket.emit('offer', peer, sessionDescription);
-        }, reportError, {
-            mandatory: {
-                OfferToReceiveAudio: true,
-                OfferToReceiveVideo: true
-            }
-        });
-    }
-
-    dispatchAnswer (peerInfo, offerSdp) {
-        log('Room::answerOffer - answering offer from', peerInfo.username);
-        var peer = this.createNewPeer(peerInfo);
-
-        peer.pc.setRemoteDescription( new RTCSessionDescription(offerSdp), () => {
-            log('Creating set remote desc...');
-            peer.pc.createAnswer(sessionDescription => {
-                peer.pc.setLocalDescription(sessionDescription);
-                log('Creating answer...', sessionDescription);
-                this.socket.emit('answer', peerInfo, sessionDescription);
-            }, reportError, {
-                mandatory: {
-                    OfferToReceiveAudio: true,
-                    OfferToReceiveVideo: true
-                }
-            });
-        }, reportError);
     }
 
 
@@ -159,46 +119,14 @@ export default class P2PRoom {
     //
 
     createNewPeer (peerInfo) {
-        var peer = new Peer(peerInfo.id, peerInfo.username, this.createPeerConnection());
+        var peer = new Peer(peerInfo, candidate => this.socket.emit('candidate', candidate));
         this.state.peers.push(peer);
         this.callbacks.peerConnected(peer);
         return peer;
     }
 
-    getPeerConnection (peerInfo) {
-        var match = this.state.peers.anyWith('id', peerInfo.id);
-        return match ? match.pc : undefined;
-    }
-
-    saveIceCandidate (peerInfo, candidate) {
-        var pc = this.getPeerConnection(peerInfo);
-
-        // Candidates must only be acknowledged if remoteDescription is set
-        if (pc && pc.remoteDescription) {
-          try {
-            pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } catch (e) {
-            console.error(pc);
-            throw e;
-          }
-        }
-    }
-
-    createPeerConnection (socket) {
-        var pc = new webkitRTCPeerConnection({ iceServers: [] });
-
-        // For any new PC created, start spamming ICE candidates
-        pc.onicecandidate =  event => {
-            if (!event || !event.candidate) {
-                // reportError(('No ICE candidate:', event);
-            } else {
-                //log('Local candidate:', event.candidate.sdpMLineIndex, event.candidate.sdpMid);
-                log('Room::createPeerConnection - Local candidate generated');
-                this.socket.emit('candidate', event.candidate);
-            }
-        };
-
-        return pc;
+    getPeer (peerInfo) {
+        return this.state.peers.anyWith('id', peerInfo.id) || Peer.Zero();
     }
 
 }

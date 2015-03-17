@@ -57,5 +57,14 @@ export default class Video {
         }
         waitUntilReady();
     }
+
+    showAudioOnly () {
+        this.dom.video.style.opacity = 0;
+        this.dom.main.style.background = 'blue';
+    }
+
+    showNoSignal () {
+        this.dom.video.style.background = 'red';
+    }
 }
 
