@@ -27,7 +27,7 @@ var username  = location.hash ? location.hash.replace('#', '') : 'Anon';
 var state = {
     localVideo: undefined,
     remoteVideos: {}
-}
+};
 
 
 //

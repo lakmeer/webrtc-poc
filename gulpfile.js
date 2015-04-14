@@ -30,6 +30,11 @@ var bundler = browserify({
   extensions: '.ls'
 });
 
+var distributionBundler = browserify({
+    cache: {},
+    packageCache: {},
+    entries: [ './src/p2pRoom/index.js' ]
+});
 
 // Tasks
 
@@ -50,7 +55,15 @@ gulp.task('browserify', function () {
     .bundle()
     .on('error', handle)
     .pipe(source('app.js'))
-    .pipe(gulp.dest('public'))
+    .pipe(gulp.dest('public'));
+});
+
+gulp.task('dist', function () {
+    return distributionBundler
+        .bundle()
+        .on('error', handle)
+        .pipe(source('vidni.js'))
+        .pipe(gulp.dest('dist'));
 });
 
 

@@ -55,13 +55,18 @@ io.on('connection', function (socket) {
           myPeerInfo.username = username;
           myPeerInfo.meta = meta;
           peerInfos.push(myPeerInfo);
+          console.log("Updated peerInfos:", peerInfos.members);
         }
     });
 
     socket.on('leave', function onLeave () {
-        log('Peer leaving:', socket.id, '(' + (myPeerInfo.username || 'no name') + ')');
-        socket.broadcast.emit('peer-disconnected', myPeerInfo);
-        peerInfos.remove(myPeerInfo);
+        if (peerInfos.anyWith('id', socket.id)) {
+          log('Peer leaving:', socket.id, '(' + (myPeerInfo.username || 'no name') + ')');
+          socket.broadcast.emit('peer-disconnected', myPeerInfo);
+          peerInfos.remove(myPeerInfo);
+        } else {
+          log('Peer', socket.id, 'reported leaving, but was actively joined to this room.');
+        }
     });
 
     socket.on('offer', function onOffer (targetPeer, sdp) {
@@ -81,8 +86,14 @@ io.on('connection', function (socket) {
 
     socket.on('disconnect', function () {
         log('Client interrupted:', socket.id, '(' + (myPeerInfo.username || 'no name') + ')');
-        socket.broadcast.emit('peer-disconnected', myPeerInfo);
-        peerInfos.remove(myPeerInfo);
+
+        if (peerInfos.anyWith('id', socket.id)) {
+          socket.broadcast.emit('peer-disconnected', myPeerInfo);
+          peerInfos.remove(myPeerInfo);
+        } else {
+          log('Interrupted while not a peer (don\'t broadcast):', socket.id);
+        }
     });
+
 });
 
