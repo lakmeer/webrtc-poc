@@ -2,6 +2,11 @@
 import { id, log, reportError } from '../../common/helpers';
 
 
+// RTCPeerConnection cascade
+
+var PeerConnection = window.RTCPeerConnection || window.mozRTCPeerConnection || window.webkitRTCPeerConnection;
+
+
 //
 // Peer Class
 //
@@ -11,7 +16,7 @@ export default class Peer {
         this.id = info.id;
         this.username = info.username;
         this.meta = info.meta || {};
-        this.pc = new webkitRTCPeerConnection(iceConfig);
+        this.pc = new PeerConnection(iceConfig);
 
         // Send any candidates we find to whom it may concern
         this.pc.onicecandidate = (event) => {
