@@ -39,6 +39,8 @@ console.log('Running signalling server on ' + config.port);
 
 var io = socket.listen(server);
 
+io.set('origins', config.allowedOrigins);
+
 io.on('connection', function (socket) {
     var myPeerInfo = new PeerInfo(socket.id);
 
