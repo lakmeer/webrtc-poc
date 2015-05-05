@@ -10,6 +10,11 @@ var PeerInfo   = require('../common/peerInfo');
 var log        = require('../common/helpers').log;
 
 
+// Config
+
+var config = require('../config/local.json');
+
+
 // State
 
 var peerInfos = new Collection();
@@ -26,8 +31,9 @@ var credentials = {
   passphrase: ''
 };
 
-var server = https.createServer(credentials, reqIgnorer).listen(8081);
+var server = https.createServer(credentials, reqIgnorer).listen(config.port);
 
+console.log('Running signalling server on ' + config.port);
 
 // Socket Server
 

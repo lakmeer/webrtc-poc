@@ -1,3 +1,5 @@
 node_modules
 .idea
 turn*
+config/*
+!config/example.json
