@@ -2,19 +2,12 @@
 import { id, log, reportError } from '../../common/helpers';
 
 
-// Reference Constants
-
-var iceConfig = {
-    iceServers: []
-};
-
-
 //
 // Peer Class
 //
 
 export default class Peer {
-    constructor (info, λ) {
+    constructor (info, iceConfig, λ) {
         this.id = info.id;
         this.username = info.username;
         this.meta = info.meta || {};

@@ -15,10 +15,10 @@ import Peer from './peer';
 // - Check for duplicate peers
 
 export default class P2PRoom {
-    constructor (name, serverURL) {
+    constructor (name, config) {
         this.options = {
             name,
-            serverURL
+            config
         };
         this.state = {
             needsSettingUp: true,
@@ -29,7 +29,7 @@ export default class P2PRoom {
             peerDisonnected: id,
             joinError: id
         };
-        this.socket = io.connect(serverURL);
+        this.socket = io.connect(config.signalServer.hostname + ":" + config.signalServer.port);
     }
 
 
@@ -119,7 +119,7 @@ export default class P2PRoom {
     //
 
     createNewPeer (peerInfo) {
-        var peer = new Peer(peerInfo, candidate => this.socket.emit('candidate', candidate));
+        var peer = new Peer(peerInfo, this.options.config.iceServers, candidate => this.socket.emit('candidate', candidate));
         this.state.peers.push(peer);
         this.callbacks.peerConnected(peer);
         return peer;
