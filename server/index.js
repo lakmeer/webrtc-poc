@@ -3,6 +3,7 @@
 
 var socket = require('socket.io');
 var fs     = require('fs');
+var http   = require('http');
 var https  = require('https');
 
 var Collection = require('../common/collection');
@@ -31,7 +32,9 @@ var credentials = {
   passphrase: ''
 };
 
-var server = https.createServer(credentials, reqIgnorer).listen(config.port);
+var server = config.https
+  ? https.createServer(credentials, reqIgnorer).listen(config.port)
+  : http.createServer(reqIgnorer).listen(config.port);
 
 console.log('Running signalling server on ' + config.port);
 
