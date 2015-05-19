@@ -7244,7 +7244,7 @@ var P2PRoom = (function () {
             value: function createNewPeer(peerInfo) {
                 var _this = this;
 
-                var peer = new Peer(peerInfo, this.options.config.iceServers, function (candidate) {
+                var peer = new Peer(peerInfo, this.options.config, function (candidate) {
                     return _this.socket.emit("candidate", candidate);
                 });
                 this.state.peers.push(peer);

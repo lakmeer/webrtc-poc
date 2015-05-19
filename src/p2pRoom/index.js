@@ -119,7 +119,7 @@ export default class P2PRoom {
     //
 
     createNewPeer (peerInfo) {
-        var peer = new Peer(peerInfo, this.options.config.iceServers, candidate => this.socket.emit('candidate', candidate));
+        var peer = new Peer(peerInfo, this.options.config, candidate => this.socket.emit('candidate', candidate));
         this.state.peers.push(peer);
         this.callbacks.peerConnected(peer);
         return peer;
