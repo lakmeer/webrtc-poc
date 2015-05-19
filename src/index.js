@@ -34,7 +34,7 @@ var state = {
 // Set up Room
 //
 
-var room = new P2PRoom('tivni', serverURL + ":8081")
+var room = new P2PRoom('tivni', { signalServer: { hostname: serverURL, port: 8081 }, iceServers: [] });
 
 room.on('peerConnected', function (peer) {
 

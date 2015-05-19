@@ -1,190 +1,11 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 "use strict";
 
-var _interopRequire = function (obj) { return obj && obj.__esModule ? obj["default"] : obj; };
+// Expose public modules to consuming code
 
-var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
+window.P2PRoom = require("./p2pRoom");
 
-var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } };
-
-var io = _interopRequire(require("socket.io-client"));
-
-var _commonHelpers = require("../../common/helpers");
-
-var id = _commonHelpers.id;
-var log = _commonHelpers.log;
-var reportError = _commonHelpers.reportError;
-
-var Collection = _interopRequire(require("../../common/collection"));
-
-var Peer = _interopRequire(require("./peer"));
-
-//
-// P2PRoom Class
-//
-// TODO:
-//
-// - Don't join room or dispatch callback if room already joined
-// - Similarly for leaving
-// - Check for duplicate peers
-
-var P2PRoom = (function () {
-    function P2PRoom(name, config) {
-        _classCallCheck(this, P2PRoom);
-
-        this.options = {
-            name: name,
-            config: config
-        };
-        this.state = {
-            needsSettingUp: true,
-            peers: new Collection()
-        };
-        this.callbacks = {
-            peerConnected: id,
-            peerDisonnected: id,
-            joinError: id
-        };
-        this.socket = io.connect(config.signalServer.hostname + ":" + config.signalServer.port);
-    }
-
-    _createClass(P2PRoom, {
-        on: {
-
-            //
-            // External methods
-            //
-
-            // On: bind callbacks to important room events
-
-            value: function on(event, λ) {
-                this.callbacks[event] = λ;
-            }
-        },
-        join: {
-
-            // Join: join the room by asking signaling server for peers to talk to
-
-            value: function join(username, meta) {
-                log("Room::joining as", username);
-
-                this.socket.emit("join", username, meta || {});
-
-                if (this.state.needsSettingUp) {
-                    this.socket.on("offer", this.onReceivedOffer.bind(this));
-                    this.socket.on("answer", this.onReceivedAnswer.bind(this));
-                    this.socket.on("candidate", this.onReceivedRemoteCandidate.bind(this));
-                    this.socket.on("peer-list", this.onPeerList.bind(this));
-                    this.socket.on("peer-disconnected", this.onPeerDisconnected.bind(this));
-
-                    this.socket.on("join-error", this.callbacks.joinError.bind(this));
-
-                    this.state.needsSettingUp = false;
-                }
-            }
-        },
-        leave: {
-
-            // Leave: stop talking to peers (but don't disconnect from signal server)
-
-            value: function leave() {
-                this.socket.emit("leave");
-                this.state.peers.forEach(function (peer) {
-                    return peer.pc.close();
-                });
-                this.state.peers.clear();
-            }
-        },
-        onReceivedOffer: {
-
-            //
-            // Socket event handlers
-            //
-
-            value: function onReceivedOffer(peerInfo, offerSdp) {
-                var _this = this;
-
-                log("Room::answerOffer - answering offer from", peerInfo.username);
-                // If we're getting an offer (not an answer), the connection is only
-                // halfway set up, so there is no Peer object on our end yet. Make one.
-                var peer = this.createNewPeer(peerInfo);
-                peer.dispatchAnswer(offerSdp, function (sessionDescription) {
-                    return _this.socket.emit("answer", peerInfo, sessionDescription);
-                });
-            }
-        },
-        onReceivedAnswer: {
-            value: function onReceivedAnswer(peerInfo, answerSdp) {
-                this.getPeer(peerInfo).setRemoteDescription(answerSdp);
-            }
-        },
-        onReceivedRemoteCandidate: {
-            value: function onReceivedRemoteCandidate(peerInfo, candidate) {
-                this.getPeer(peerInfo).saveIceCandidate(candidate);
-            }
-        },
-        onPeerDisconnected: {
-
-            // onPeerDisconnected - signal server told us a peer stopped talking
-
-            value: function onPeerDisconnected(peerInfo) {
-                this.callbacks.peerDisconnected(peerInfo);
-                // Turns out we don't have to do much, because the leave() function
-                // called on the other end will terminate the PC which propagates to us
-                this.state.peers.remove(this.getPeer(peerInfo));
-            }
-        },
-        onPeerList: {
-
-            // onPeerList - signal server told us all the peers we can send offers to
-
-            value: function onPeerList(peerList) {
-                var _this = this;
-
-                if (peerList.length === 0) {
-                    log("Room::join - no-one is here :(  Wait for new peers.");
-                } else {
-                    log("Room::join -", peerList.length, "peers found!", peerList);
-                }
-
-                peerList.forEach(function (peerInfo) {
-                    var peer = _this.createNewPeer(peerInfo);
-                    peer.dispatchOffer(function (sessionDescription) {
-                        return _this.socket.emit("offer", peerInfo, sessionDescription);
-                    });
-                });
-            }
-        },
-        createNewPeer: {
-
-            //
-            // Helper methods
-            //
-
-            value: function createNewPeer(peerInfo) {
-                var _this = this;
-
-                var peer = new Peer(peerInfo, this.options.config.iceServers, function (candidate) {
-                    return _this.socket.emit("candidate", candidate);
-                });
-                this.state.peers.push(peer);
-                this.callbacks.peerConnected(peer);
-                return peer;
-            }
-        },
-        getPeer: {
-            value: function getPeer(peerInfo) {
-                return this.state.peers.anyWith("id", peerInfo.id) || Peer.Zero();
-            }
-        }
-    });
-
-    return P2PRoom;
-})();
-
-module.exports = P2PRoom;
-
-},{"../../common/collection":2,"../../common/helpers":3,"./peer":54,"socket.io-client":4}],2:[function(require,module,exports){
+},{"./p2pRoom":54}],2:[function(require,module,exports){
 "use strict";
 
 // Simple robust Collection class
@@ -7258,6 +7079,192 @@ function toArray(list, index) {
 }
 
 },{}],54:[function(require,module,exports){
+"use strict";
+
+var _interopRequire = function (obj) { return obj && obj.__esModule ? obj["default"] : obj; };
+
+var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();
+
+var _classCallCheck = function (instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } };
+
+var io = _interopRequire(require("socket.io-client"));
+
+var _commonHelpers = require("../../common/helpers");
+
+var id = _commonHelpers.id;
+var log = _commonHelpers.log;
+var reportError = _commonHelpers.reportError;
+
+var Collection = _interopRequire(require("../../common/collection"));
+
+var Peer = _interopRequire(require("./peer"));
+
+//
+// P2PRoom Class
+//
+// TODO:
+//
+// - Don't join room or dispatch callback if room already joined
+// - Similarly for leaving
+// - Check for duplicate peers
+
+var P2PRoom = (function () {
+    function P2PRoom(name, config) {
+        _classCallCheck(this, P2PRoom);
+
+        this.options = {
+            name: name,
+            config: config
+        };
+        this.state = {
+            needsSettingUp: true,
+            peers: new Collection()
+        };
+        this.callbacks = {
+            peerConnected: id,
+            peerDisonnected: id,
+            joinError: id
+        };
+        this.socket = io.connect(config.signalServer.hostname + ":" + config.signalServer.port);
+    }
+
+    _createClass(P2PRoom, {
+        on: {
+
+            //
+            // External methods
+            //
+
+            // On: bind callbacks to important room events
+
+            value: function on(event, λ) {
+                this.callbacks[event] = λ;
+            }
+        },
+        join: {
+
+            // Join: join the room by asking signaling server for peers to talk to
+
+            value: function join(username, meta) {
+                log("Room::joining as", username);
+
+                this.socket.emit("join", username, meta || {});
+
+                if (this.state.needsSettingUp) {
+                    this.socket.on("offer", this.onReceivedOffer.bind(this));
+                    this.socket.on("answer", this.onReceivedAnswer.bind(this));
+                    this.socket.on("candidate", this.onReceivedRemoteCandidate.bind(this));
+                    this.socket.on("peer-list", this.onPeerList.bind(this));
+                    this.socket.on("peer-disconnected", this.onPeerDisconnected.bind(this));
+
+                    this.socket.on("join-error", this.callbacks.joinError.bind(this));
+
+                    this.state.needsSettingUp = false;
+                }
+            }
+        },
+        leave: {
+
+            // Leave: stop talking to peers (but don't disconnect from signal server)
+
+            value: function leave() {
+                this.socket.emit("leave");
+                this.state.peers.forEach(function (peer) {
+                    return peer.pc.close();
+                });
+                this.state.peers.clear();
+            }
+        },
+        onReceivedOffer: {
+
+            //
+            // Socket event handlers
+            //
+
+            value: function onReceivedOffer(peerInfo, offerSdp) {
+                var _this = this;
+
+                log("Room::answerOffer - answering offer from", peerInfo.username);
+                // If we're getting an offer (not an answer), the connection is only
+                // halfway set up, so there is no Peer object on our end yet. Make one.
+                var peer = this.createNewPeer(peerInfo);
+                peer.dispatchAnswer(offerSdp, function (sessionDescription) {
+                    return _this.socket.emit("answer", peerInfo, sessionDescription);
+                });
+            }
+        },
+        onReceivedAnswer: {
+            value: function onReceivedAnswer(peerInfo, answerSdp) {
+                this.getPeer(peerInfo).setRemoteDescription(answerSdp);
+            }
+        },
+        onReceivedRemoteCandidate: {
+            value: function onReceivedRemoteCandidate(peerInfo, candidate) {
+                this.getPeer(peerInfo).saveIceCandidate(candidate);
+            }
+        },
+        onPeerDisconnected: {
+
+            // onPeerDisconnected - signal server told us a peer stopped talking
+
+            value: function onPeerDisconnected(peerInfo) {
+                this.callbacks.peerDisconnected(peerInfo);
+                // Turns out we don't have to do much, because the leave() function
+                // called on the other end will terminate the PC which propagates to us
+                this.state.peers.remove(this.getPeer(peerInfo));
+            }
+        },
+        onPeerList: {
+
+            // onPeerList - signal server told us all the peers we can send offers to
+
+            value: function onPeerList(peerList) {
+                var _this = this;
+
+                if (peerList.length === 0) {
+                    log("Room::join - no-one is here :(  Wait for new peers.");
+                } else {
+                    log("Room::join -", peerList.length, "peers found!", peerList);
+                }
+
+                peerList.forEach(function (peerInfo) {
+                    var peer = _this.createNewPeer(peerInfo);
+                    peer.dispatchOffer(function (sessionDescription) {
+                        return _this.socket.emit("offer", peerInfo, sessionDescription);
+                    });
+                });
+            }
+        },
+        createNewPeer: {
+
+            //
+            // Helper methods
+            //
+
+            value: function createNewPeer(peerInfo) {
+                var _this = this;
+
+                var peer = new Peer(peerInfo, this.options.config.iceServers, function (candidate) {
+                    return _this.socket.emit("candidate", candidate);
+                });
+                this.state.peers.push(peer);
+                this.callbacks.peerConnected(peer);
+                return peer;
+            }
+        },
+        getPeer: {
+            value: function getPeer(peerInfo) {
+                return this.state.peers.anyWith("id", peerInfo.id) || Peer.Zero();
+            }
+        }
+    });
+
+    return P2PRoom;
+})();
+
+module.exports = P2PRoom;
+
+},{"../../common/collection":2,"../../common/helpers":3,"./peer":55,"socket.io-client":4}],55:[function(require,module,exports){
 "use strict";
 
 var _createClass = (function () { function defineProperties(target, props) { for (var key in props) { var prop = props[key]; prop.configurable = true; if (prop.value) prop.writable = true; } Object.defineProperties(target, props); } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; })();

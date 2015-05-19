@@ -33,7 +33,7 @@ var bundler = browserify({
 var distributionBundler = browserify({
     cache: {},
     packageCache: {},
-    entries: [ './src/p2pRoom/index.js' ]
+    entries: [ './src/dist.js' ]
 });
 
 // Tasks
